@@ -30,12 +30,9 @@ env/
 ai_env/
 
 # Large Model weights (prevent pushing multi-hundred MB binary blobs)
-models/stt/**/*.onnx
-models/tts/**/*.onnx
-models/stt/**/*.tar.bz2
-models/tts/**/*.tar.bz2
-models/stt/**/*.zip
-models/tts/**/*.zip
+models/stt/
+models/tts/
+!models/registry.json
 
 # Environment & credentials
 .env

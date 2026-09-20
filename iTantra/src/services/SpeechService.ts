@@ -8,7 +8,6 @@
  */
 
 import { Platform } from 'react-native';
-import * as ExpoSpeech from 'expo-speech';
 import { Audio } from 'expo-av';
 
 // ─── Pipeline Step Tracker ─────────────────────────────────────────────────
@@ -68,7 +67,6 @@ async function getESR() {
 }
 
 class SpeechService {
-  private webRecognition: any = null;
   private isListening = false;
   private onResult: SpeechCallback | null = null;
   private onError: ErrorCallback | null = null;
@@ -119,12 +117,6 @@ class SpeechService {
   unlockAudio() {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       try {
-        if ('speechSynthesis' in window) {
-          window.speechSynthesis.resume();
-          const u = new SpeechSynthesisUtterance('');
-          u.volume = 0.01;
-          window.speechSynthesis.speak(u);
-        }
         const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
         if (AudioCtx) {
           const ctx = new AudioCtx();
@@ -188,44 +180,6 @@ class SpeechService {
         this.onError?.('Microphone access denied. Please enable mic permissions.');
       }
     }
-
-    // 2. Concurrently run SpeechRecognition for instant live interim preview if browser supports it
-    const SpeechRecognition: any =
-      (typeof window !== 'undefined' && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition));
-
-    if (SpeechRecognition) {
-      if (this.webRecognition) {
-        try { this.webRecognition.abort(); } catch {}
-      }
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.lang = langCode;
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
-
-        recognition.onresult = (event: any) => {
-          let interimText = '';
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const text = event.results[i][0].transcript;
-            if (!event.results[i].isFinal) interimText += text;
-          }
-          if (interimText && this.isListening) {
-            this.onResult?.(interimText, false);
-          }
-        };
-
-        recognition.onerror = (event: any) => {
-          // Ignore network errors in browser recognizer since offline Whisper handles final transcript
-          if (event.error !== 'no-speech' && event.error !== 'network') {
-            console.warn('[WebSTT]', event.error);
-          }
-        };
-
-        recognition.start();
-        this.webRecognition = recognition;
-      } catch {}
-    }
   }
 
   private async startNativeSTT(langCode: string) {
@@ -257,8 +211,6 @@ class SpeechService {
     this.isListening = false;
 
     if (Platform.OS === 'web') {
-      try { this.webRecognition?.stop(); } catch {}
-
       // Clean up audio nodes
       if (this.scriptProcessor) {
         try { this.scriptProcessor.disconnect(); } catch {}
@@ -474,21 +426,7 @@ class SpeechService {
         }
         if (fallbackTriggered) return;
         fallbackTriggered = true;
-        this.stopSpeaking(); // Kill HTML audio element completely
-        try {
-          if (typeof window !== 'undefined' && window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = langCode;
-            utterance.pitch = isSOS ? 1.2 : 1.0;
-            utterance.rate = isSOS ? 0.85 : 0.95;
-            utterance.volume = 1.0;
-            utterance.onend = () => { onDone?.(); };
-            utterance.onerror = () => { onDone?.(); };
-            window.speechSynthesis.speak(utterance);
-            return;
-          }
-        } catch {}
+        this.stopSpeaking();
         onDone?.();
       };
 
@@ -526,7 +464,10 @@ class SpeechService {
         this.nativeSound = null;
       }
       const host = this.getServerHost();
-      const ttsOfflineUrl = `http://${host}:3002/tts?text=${encodeURIComponent(text.slice(0, 200))}&lang=${bcp47Short}&speed=1.0`;
+      const ttsOfflineUrl = `http://${host}:3002/tts` +
+        `?text=${encodeURIComponent(text.slice(0, 200))}` +
+        `&lang=${bcp47Short}` +
+        `&speed=1.0`;
       console.log('[Native TTS] Playing offline audio from:', ttsOfflineUrl);
       const { sound } = await Audio.Sound.createAsync(
         { uri: ttsOfflineUrl },
@@ -542,16 +483,8 @@ class SpeechService {
       });
       return;
     } catch (e) {
-      console.warn('[Native Offline TTS Unreachable, falling back to ExpoSpeech]:', e);
-      try { ExpoSpeech.stop(); } catch {}
-      ExpoSpeech.speak(text, {
-        language: langCode,
-        pitch: isSOS ? 1.2 : 1.0,
-        rate: isSOS ? 0.85 : 0.95,
-        volume: 1.0,
-        onDone,
-        onError: (e) => { console.warn('[TTS/native]', e); onDone?.(); },
-      });
+      console.warn('[Native Offline TTS Unreachable]:', e);
+      onDone?.();
     }
   }
 
@@ -572,13 +505,7 @@ class SpeechService {
           this.currentAudio = null;
         } catch {}
       }
-      try {
-        if (window.speechSynthesis) {
-          window.speechSynthesis.cancel();
-        }
-      } catch {}
     }
-    try { ExpoSpeech.stop(); } catch {}
   }
 
   private playSOSBeep() {

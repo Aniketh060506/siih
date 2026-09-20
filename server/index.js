@@ -1,23 +1,16 @@
 /**
  * iTantra WebSocket Relay Server — Team Monte Carlo SIH 2026
- *
- * Relays micro-packets between all connected nodes.
- * Maintains node registry and broadcasts peer lists.
- *
- * NEW: /tts proxy endpoint — bypasses browser CORS to serve
- * Google Translate TTS audio for all 10 Indian languages.
+ * 100% OFFLINE Local Relay & AI Proxy
  */
 
 const { WebSocketServer, WebSocket } = require('ws');
 const http = require('http');
-const https = require('https');
 const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3001;
 
-// ─── Google Translate TTS language codes ────────────────────────────────────
-// Maps BCP-47 short code -> Google TTS language parameter
-// Note: Odia ('or') is supported by Google Translate as 'or'
+// ─── Offline TTS language codes ─────────────────────────────────────────────
+// Maps BCP-47 short code -> local offline TTS language parameter
 const LANG_MAP = {
   'hi': 'hi',  // Hindi
   'gu': 'gu',  // Gujarati
@@ -26,8 +19,8 @@ const LANG_MAP = {
   'ml': 'ml',  // Malayalam
   'ta': 'ta',  // Tamil
   'te': 'te',  // Telugu
-  'or': 'or',  // Odia (Google TTS code)
-  'od': 'or',  // Alternate Odia code fallback
+  'or': 'or',  // Odia
+  'od': 'or',  // Odia fallback
   'bn': 'bn',  // Bengali
   'en': 'en',  // English
 };
@@ -104,73 +97,22 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // 1. Try Local 100% Offline AI Neural Model on port 3002
+    // 100% Offline AI Neural Model on port 3002
     const aiUrl = `http://127.0.0.1:3002/tts?text=${encodeURIComponent(text.slice(0, 200))}&lang=${lang}`;
     const aiReq = http.get(aiUrl, (aiRes) => {
-      if (aiRes.statusCode === 200) {
-        console.log(`[🤖 Local Offline AI] TTS [${lang}]: "${text.slice(0, 40)}" (100% offline model)`);
-        res.writeHead(200, {
-          ...corsHeaders,
-          'Content-Type': 'audio/wav',
-          'Cache-Control': 'public, max-age=300',
-        });
-        aiRes.pipe(res);
-        return;
-      }
-      console.warn(`[Local AI] Port 3002 returned status ${aiRes.statusCode}. Falling back to Google TTS...`);
-      fetchTTS(lang, text);
+      res.writeHead(aiRes.statusCode, {
+        ...corsHeaders,
+        'Content-Type': 'audio/wav',
+        'Cache-Control': 'public, max-age=300',
+      });
+      aiRes.pipe(res);
     });
 
     aiReq.on('error', (err) => {
-      console.warn(`[Local AI] Port 3002 unreachable (${err.message}). Falling back to Google TTS...`);
-      fetchTTS(lang, text);
+      console.warn(`[Local AI] Port 3002 unreachable (${err.message})`);
+      res.writeHead(503, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Offline AI server unreachable: ${err.message}` }));
     });
-
-    function fetchTTS(targetLang, targetText) {
-      const googleUrl =
-        `https://translate.google.com/translate_tts?ie=UTF-8` +
-        `&q=${encodeURIComponent(targetText.slice(0, 200))}` +
-        `&tl=${targetLang}` +
-        `&sl=${targetLang}` +
-        `&client=tw-ob` +
-        `&slow=${slow}`;
-
-      const options = {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Referer': 'https://translate.google.com/',
-          'Accept': 'audio/mpeg, audio/*;q=0.9, */*;q=0.8',
-        },
-      };
-
-      console.log(`[🌐 Cloud Fallback] TTS: "${targetText.slice(0, 40)}" [${targetLang}]`);
-
-      https.get(googleUrl, options, (ttsRes) => {
-        if (ttsRes.statusCode !== 200) {
-          if (lang === 'or' && targetLang === 'or') {
-            fetchTTS('hi', targetText);
-            return;
-          }
-          res.writeHead(502, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: `Google TTS returned ${ttsRes.statusCode}` }));
-          return;
-        }
-
-        if (!res.headersSent) {
-          res.writeHead(200, {
-            ...corsHeaders,
-            'Content-Type': 'audio/mpeg',
-            'Cache-Control': 'public, max-age=300',
-          });
-        }
-        ttsRes.pipe(res);
-      }).on('error', (e) => {
-        if (!res.headersSent) {
-          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: e.message }));
-        }
-      });
-    }
 
     return;
   }

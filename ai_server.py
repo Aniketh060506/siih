@@ -131,41 +131,70 @@ def get_stt():
             return None
     return _stt_recognizer
 
-# ─── Lazy-load TTS synthesizers (one per language) ───────────────────────────
-_tts_synths = {}
+# ─── Offline TTS Synthesizers (Indic Neural + English MMS) ───────────────────
+_indic_synth = None
+_eng_synth = None
 _tts_lock = threading.Lock()
 
-def get_tts(lang_key):
-    if lang_key in _tts_synths:
-        return _tts_synths[lang_key]
+def get_tts(lang_key='hi'):
+    """Get offline neural TTS synthesizer for specified language with robust offline fallback."""
+    global _indic_synth, _eng_synth
+    tts_registry = REGISTRY.get("tts", {})
+    normalized_lang = LANG_ALIASES.get(lang_key.lower().split('-')[0], lang_key.lower().split('-')[0])
 
     with _tts_lock:
-        if lang_key in _tts_synths:
-            return _tts_synths[lang_key]
+        if normalized_lang == 'en':
+            if _eng_synth is not None:
+                return _eng_synth
+            eng_cfg = tts_registry.get('en', {})
+            model_path = eng_cfg.get("model", "")
+            if os.path.exists(model_path):
+                print(f"🔄 Loading English MMS-VITS TTS model...")
+                t0 = time.time()
+                try:
+                    tts_config = sherpa_onnx.OfflineTtsConfig(
+                        model=sherpa_onnx.OfflineTtsModelConfig(
+                            vits=sherpa_onnx.OfflineTtsVitsModelConfig(
+                                model=model_path,
+                                lexicon=eng_cfg.get("lexicon", ""),
+                                tokens=eng_cfg.get("tokens", ""),
+                                data_dir=eng_cfg.get("data_dir", ""),
+                            ),
+                            num_threads=2,
+                            debug=False,
+                        ),
+                        max_num_sentences=10,
+                        rule_fsts="",
+                    )
+                    _eng_synth = sherpa_onnx.OfflineTts(tts_config)
+                    print(f"✅ English TTS ready ({time.time()-t0:.1f}s) — sample_rate={_eng_synth.sample_rate}")
+                    return _eng_synth
+                except Exception as e:
+                    print(f"❌ English TTS load failed: {e}")
 
-        tts_registry = REGISTRY.get("tts", {})
-        cfg = tts_registry.get(lang_key) or tts_registry.get("hi")  # fallback Hindi
+        # For all Indic languages (hi, gu, mr, kn, ml, ta, te, or, bn) or fallback
+        if _indic_synth is not None:
+            return _indic_synth
 
-        if cfg is None:
-            print(f"❌ No TTS config for lang: {lang_key}")
-            return None
-
-        model_path = cfg.get("model", "")
+        indic_cfg = tts_registry.get('hi') or tts_registry.get('gu') or {}
+        model_path = indic_cfg.get("model", "")
         if not os.path.exists(model_path):
-            print(f"❌ TTS model not found: {model_path}")
-            print(f"   Run: python download_models.py")
+            print(f"❌ Indic TTS model not found at: {model_path}")
+            # Fallback to English if available
+            if _eng_synth is not None:
+                return _eng_synth
             return None
 
-        print(f"🔄 Loading TTS model for [{lang_key}]: {os.path.basename(model_path)}")
+        print(f"🔄 Loading Multilingual Indic Neural TTS (Piper Priyamvada)...")
         t0 = time.time()
         try:
             tts_config = sherpa_onnx.OfflineTtsConfig(
                 model=sherpa_onnx.OfflineTtsModelConfig(
                     vits=sherpa_onnx.OfflineTtsVitsModelConfig(
                         model=model_path,
-                        lexicon=cfg.get("lexicon", ""),
-                        tokens=cfg.get("tokens", ""),
-                        data_dir=cfg.get("data_dir", ""),
+                        lexicon=indic_cfg.get("lexicon", ""),
+                        tokens=indic_cfg.get("tokens", ""),
+                        data_dir=indic_cfg.get("data_dir", ""),
                     ),
                     num_threads=2,
                     debug=False,
@@ -173,15 +202,13 @@ def get_tts(lang_key):
                 max_num_sentences=10,
                 rule_fsts="",
             )
-            synth = sherpa_onnx.OfflineTts(tts_config)
-            _tts_synths[lang_key] = synth
-            print(f"✅ TTS [{lang_key}] ready ({time.time()-t0:.1f}s) — sample_rate={synth.sample_rate}")
+            _indic_synth = sherpa_onnx.OfflineTts(tts_config)
+            print(f"✅ Indic Neural TTS ready ({time.time()-t0:.1f}s) — sample_rate={_indic_synth.sample_rate}")
+            return _indic_synth
         except Exception as e:
-            print(f"❌ TTS [{lang_key}] load failed: {e}")
+            print(f"❌ Indic TTS load failed: {e}")
             traceback.print_exc()
-            return None
-
-    return _tts_synths[lang_key]
+            return _eng_synth
 
 # ─── Audio Utilities ─────────────────────────────────────────────────────────
 def pcm_to_wav_bytes(samples, sample_rate):
@@ -249,7 +276,11 @@ class AIHandler(BaseHTTPRequestHandler):
         # ── /health ─────────────────────────────────────────────
         if parsed.path == '/health':
             tts_registry = REGISTRY.get("tts", {})
-            loaded_tts = list(_tts_synths.keys())
+            loaded_tts = []
+            if _indic_synth is not None:
+                loaded_tts.extend(['hi', 'gu', 'mr', 'kn', 'ml', 'ta', 'te', 'or', 'bn'])
+            if _eng_synth is not None:
+                loaded_tts.append('en')
             stt_loaded = _stt_recognizer is not None
             body = json.dumps({
                 "status": "ok",
@@ -261,7 +292,7 @@ class AIHandler(BaseHTTPRequestHandler):
                     "languages": "all 10 Indian languages",
                 },
                 "tts": {
-                    "model": "MMS-VITS per language",
+                    "model": "Piper Indic Neural + MMS-VITS English",
                     "loaded_languages": loaded_tts,
                     "available_languages": list(tts_registry.keys()),
                 },
@@ -384,8 +415,9 @@ if __name__ == '__main__':
     # Warm up STT in background so first request is fast
     threading.Thread(target=get_stt, daemon=True).start()
 
-    # Pre-warm Hindi TTS (most common)
+    # Pre-warm Indic and English offline TTS
     threading.Thread(target=lambda: get_tts('hi'), daemon=True).start()
+    threading.Thread(target=lambda: get_tts('en'), daemon=True).start()
 
     httpd = HTTPServer(('0.0.0.0', PORT), AIHandler)
 
