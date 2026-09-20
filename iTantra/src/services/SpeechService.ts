@@ -373,8 +373,9 @@ class SpeechService {
 
   getIsListening() { return this.isListening; }
 
-  // ─── Current audio element (web) ─────────────────────────────────────────
+  // ─── Current audio elements ──────────────────────────────────────────────
   private currentAudio: HTMLAudioElement | null = null;
+  private currentAudioSource: any = null;
 
   // ─── TTS ─────────────────────────────────────────────────────────────────
   async speak(
@@ -383,7 +384,7 @@ class SpeechService {
     isSOS = false,
     onDone?: () => void
   ): Promise<void> {
-    // 1. Always stop any previously playing speech first (cancels echos & overlaps)
+    // 1. Stop any currently playing speech immediately
     this.stopSpeaking();
 
     if (!text || !text.trim()) {
@@ -394,75 +395,116 @@ class SpeechService {
     const langCode = LANG_STT_CODES[langId] ?? 'en-IN';
     const bcp47Short = langCode.split('-')[0]; // 'hi', 'gu', 'ta', ...
 
-    // ── 1. Web: Single-channel audio playback ──
+    // ── 1. Web: In-memory Web Audio API & HTML5 Audio ──
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       if (isSOS) {
         this.playSOSBeep();
         await new Promise(r => setTimeout(r, 600));
       }
 
-      const serverHost = window.location.hostname || 'localhost';
-      const ttsOfflineUrl = `http://${serverHost}:3002/tts` +
-        `?text=${encodeURIComponent(text.slice(0, 200))}` +
-        `&lang=${bcp47Short}` +
-        `&speed=1.0`;
-      const ttsRelayUrl = `http://${serverHost}:3001/tts` +
-        `?text=${encodeURIComponent(text.slice(0, 200))}` +
-        `&lang=${bcp47Short}` +
-        `&slow=${isSOS ? '1' : '0'}`;
+      const host = this.getServerHost();
+      const urls = [
+        `http://${host}:3002/tts?text=${encodeURIComponent(text.slice(0, 200))}&lang=${bcp47Short}&speed=1.0`,
+        `http://${host}:3001/tts?text=${encodeURIComponent(text.slice(0, 200))}&lang=${bcp47Short}&slow=${isSOS ? '1' : '0'}`,
+      ];
 
-      let triedRelay = false;
-      let fallbackTriggered = false;
-
-      const doFallback = () => {
-        if (!triedRelay) {
-          triedRelay = true;
-          console.log('[TTS] Trying relay port 3001...');
-          if (this.currentAudio) {
-            this.currentAudio.src = ttsRelayUrl;
-            this.currentAudio.play().catch(() => doFallback());
-            return;
+      let audioBlob: Blob | null = null;
+      for (const url of urls) {
+        try {
+          console.log(`[🔊 TTS] Fetching: ${url}`);
+          const res = await fetch(url);
+          if (res.ok) {
+            const blob = await res.blob();
+            if (blob && blob.size > 100) {
+              audioBlob = blob;
+              console.log(`[🔊 TTS] Received ${blob.size} bytes audio for [${bcp47Short}]`);
+              break;
+            }
           }
+        } catch (fetchErr) {
+          console.warn(`[🔊 TTS] Endpoint failed (${url}):`, fetchErr);
         }
-        if (fallbackTriggered) return;
-        fallbackTriggered = true;
-        this.stopSpeaking();
-        onDone?.();
-      };
+      }
 
+      if (!audioBlob) {
+        console.warn('[🔊 TTS] Could not get audio from 3002 or 3001');
+        onDone?.();
+        return;
+      }
+
+      // Priority A: Web Audio API (instant, no CORS/Range/Buffering issues)
       try {
-        const audio = new Audio();
+        const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = this.audioContext || new AudioCtx();
+          this.audioContext = ctx;
+          if (ctx.state === 'suspended') {
+            await ctx.resume();
+          }
+          const arrayBuf = await audioBlob.arrayBuffer();
+          const audioBuffer = await ctx.decodeAudioData(arrayBuf);
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(ctx.destination);
+          this.currentAudioSource = source;
+          source.onended = () => {
+            this.currentAudioSource = null;
+            onDone?.();
+          };
+          source.start(0);
+          console.log('[🔊 TTS] Playing via Web Audio API AudioContext');
+          return;
+        }
+      } catch (webAudioErr) {
+        console.warn('[🔊 TTS] Web Audio API playback failed, trying HTML5 Audio fallback:', webAudioErr);
+      }
+
+      // Priority B: HTML5 Audio via same-origin Object URL
+      try {
+        const objectUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(objectUrl);
         this.currentAudio = audio;
 
         audio.onended = () => {
+          URL.revokeObjectURL(objectUrl);
           this.currentAudio = null;
           onDone?.();
         };
 
-        audio.onerror = () => {
-          doFallback();
+        audio.onerror = (err) => {
+          console.warn('[🔊 TTS] HTML5 Audio error:', err);
+          URL.revokeObjectURL(objectUrl);
+          this.currentAudio = null;
+          onDone?.();
         };
 
-        audio.src = ttsOfflineUrl;
-        const playPromise = audio.play();
-        if (playPromise) {
-          playPromise.catch(() => {
-            doFallback();
-          });
-        }
+        await audio.play();
+        console.log('[🔊 TTS] Playing via HTML5 Audio element');
         return;
-      } catch {
-        doFallback();
+      } catch (html5Err) {
+        console.warn('[🔊 TTS] HTML5 Audio play rejected:', html5Err);
+        onDone?.();
         return;
       }
     }
 
-    // ── 2. Native: Play offline audio via expo-av Audio.Sound ─────────────
+    // ── 2. Native (Android / iOS): expo-av Audio.Sound ─────────────
     try {
       if (this.nativeSound) {
         try { await this.nativeSound.unloadAsync(); } catch {}
         this.nativeSound = null;
       }
+
+      // Ensure audio routes to main phone loudspeaker, not earpiece
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch {}
+
       const host = this.getServerHost();
       const ttsOfflineUrl = `http://${host}:3002/tts` +
         `?text=${encodeURIComponent(text.slice(0, 200))}` +
@@ -489,22 +531,27 @@ class SpeechService {
   }
 
   stopSpeaking() {
+    if (this.currentAudioSource) {
+      try {
+        this.currentAudioSource.stop();
+        this.currentAudioSource.disconnect();
+      } catch {}
+      this.currentAudioSource = null;
+    }
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.pause();
+        this.currentAudio.currentTime = 0;
+        this.currentAudio.src = '';
+      } catch {}
+      this.currentAudio = null;
+    }
     if (this.nativeSound) {
       try {
         this.nativeSound.stopAsync();
         this.nativeSound.unloadAsync();
-        this.nativeSound = null;
       } catch {}
-    }
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (this.currentAudio) {
-        try {
-          this.currentAudio.pause();
-          this.currentAudio.currentTime = 0;
-          this.currentAudio.src = '';
-          this.currentAudio = null;
-        } catch {}
-      }
+      this.nativeSound = null;
     }
   }
 

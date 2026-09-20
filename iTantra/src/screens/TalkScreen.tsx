@@ -636,8 +636,15 @@ function MessageBubble({ message }: { message: Message }) {
     hour: '2-digit', minute: '2-digit',
   });
   return (
-    <View style={[styles.bubble, message.isOwn ? styles.bubbleOwn : styles.bubbleOther,
-      message.isSOS && styles.bubbleSOS]}>
+    <TouchableOpacity
+      style={[styles.bubble, message.isOwn ? styles.bubbleOwn : styles.bubbleOther,
+        message.isSOS && styles.bubbleSOS]}
+      activeOpacity={0.7}
+      onPress={() => {
+        speechService.unlockAudio();
+        speechService.speak(message.text, message.langId, message.isSOS);
+      }}
+    >
       {!message.isOwn && message.fromName && (
         <Text style={styles.bubbleFrom}>{message.fromName}</Text>
       )}
@@ -645,6 +652,12 @@ function MessageBubble({ message }: { message: Message }) {
         {message.text}
       </Text>
       <View style={styles.bubbleMeta}>
+        <Ionicons
+          name="volume-medium-outline"
+          size={12}
+          color={message.isOwn ? 'rgba(255,255,255,0.7)' : COLORS.textMuted}
+          style={{ marginRight: 4 }}
+        />
         <Text style={[styles.bubbleMetaText, !message.isOwn && styles.bubbleMetaTextOther]}>
           {lang.name} · {message.byteSize}B
           {message.latencyMs ? ` · ${message.latencyMs}ms` : ''}
@@ -656,7 +669,7 @@ function MessageBubble({ message }: { message: Message }) {
           <Text style={styles.sosBadgeText}>🚨 SOS</Text>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 

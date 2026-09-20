@@ -32,8 +32,9 @@ const SLOW_LANGS = new Set(['ml', 'kn', 'te', 'ta', 'or']);
 const server = http.createServer((req, res) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Range, Accept',
+    'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
   };
 
   if (req.method === 'OPTIONS') {
@@ -102,6 +103,7 @@ const server = http.createServer((req, res) => {
     const aiReq = http.get(aiUrl, (aiRes) => {
       res.writeHead(aiRes.statusCode, {
         ...corsHeaders,
+        'Accept-Ranges': 'bytes',
         'Content-Type': 'audio/wav',
         'Cache-Control': 'public, max-age=300',
       });
