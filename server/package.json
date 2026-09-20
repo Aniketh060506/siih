@@ -1,0 +1,13 @@
+{
+  "name": "itantra-relay-server",
+  "version": "1.0.0",
+  "description": "iTantra WebSocket relay server for Team Monte Carlo SIH 2026",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

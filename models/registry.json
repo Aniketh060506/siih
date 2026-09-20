@@ -1,0 +1,81 @@
+{
+  "stt": {
+    "type": "whisper",
+    "encoder": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\stt\\whisper-tiny-int8\\tiny-encoder.int8.onnx",
+    "decoder": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\stt\\whisper-tiny-int8\\tiny-decoder.int8.onnx",
+    "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\stt\\whisper-tiny-int8\\tiny-tokens.txt",
+    "lang": "auto"
+  },
+  "tts": {
+    "hi": {
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-hin\\model.onnx",
+      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-hin\\lexicon.txt",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-hin\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-hin",
+      "name": "Hindi"
+    },
+    "gu": {
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-guj\\model.onnx",
+      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-guj\\lexicon.txt",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-guj\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-guj",
+      "name": "Gujarati"
+    },
+    "mr": {
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-mar\\model.onnx",
+      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-mar\\lexicon.txt",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-mar\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-mar",
+      "name": "Marathi"
+    },
+    "kn": {
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-kan\\model.onnx",
+      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-kan\\lexicon.txt",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-kan\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-kan",
+      "name": "Kannada"
+    },
+    "ml": {
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-mal\\model.onnx",
+      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-mal\\lexicon.txt",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-mal\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-mal",
+      "name": "Malayalam"
+    },
+    "ta": {
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-tam\\model.onnx",
+      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-tam\\lexicon.txt",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-tam\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-tam",
+      "name": "Tamil"
+    },
+    "te": {
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-tel\\model.onnx",
+      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-tel\\lexicon.txt",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-tel\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-tel",
+      "name": "Telugu"
+    },
+    "or": {
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-ori\\model.onnx",
+      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-ori\\lexicon.txt",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-ori\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-ori",
+      "name": "Odia"
+    },
+    "bn": {
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-ben\\model.onnx",
+      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-ben\\lexicon.txt",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-ben\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-ben",
+      "name": "Bengali"
+    },
+    "en": {
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-eng\\model.onnx",
+      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-eng\\lexicon.txt",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-eng\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-eng",
+      "name": "English"
+    }
+  }
+}
