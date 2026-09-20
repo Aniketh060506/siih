@@ -1,81 +1,87 @@
 {
+  "vad": {
+    "type": "silero",
+    "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\vad\\silero_vad.onnx",
+    "threshold": 0.5,
+    "min_silence_duration_ms": 700,
+    "speech_pad_ms": 300
+  },
   "stt": {
-    "type": "whisper",
-    "encoder": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\stt\\whisper-tiny-int8\\tiny-encoder.int8.onnx",
-    "decoder": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\stt\\whisper-tiny-int8\\tiny-decoder.int8.onnx",
-    "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\stt\\whisper-tiny-int8\\tiny-tokens.txt",
-    "lang": "auto"
+    "type": "indicconformer",
+    "model_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\stt\\indicconformer",
+    "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\stt\\indicconformer\\tokens.txt",
+    "en_tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\stt\\indicconformer\\en\\tokens.txt"
   },
   "tts": {
     "hi": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\hi_IN-priyamvada-medium.onnx",
-      "lexicon": "",
       "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\tokens.txt",
+      "lexicon": "",
       "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\espeak-ng-data",
-      "name": "Hindi (Piper Neural)"
+      "name": "Hindi (Piper Priyamvada + espeak-ng)"
     },
     "gu": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\hi_IN-priyamvada-medium.onnx",
-      "lexicon": "",
       "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\tokens.txt",
+      "lexicon": "",
       "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\espeak-ng-data",
-      "name": "Gujarati"
+      "name": "Gujarati (Piper Priyamvada + espeak-ng)"
     },
     "mr": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\hi_IN-priyamvada-medium.onnx",
-      "lexicon": "",
       "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\tokens.txt",
+      "lexicon": "",
       "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\espeak-ng-data",
-      "name": "Marathi"
+      "name": "Marathi (Piper Priyamvada + espeak-ng)"
     },
     "kn": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\hi_IN-priyamvada-medium.onnx",
-      "lexicon": "",
       "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\tokens.txt",
+      "lexicon": "",
       "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\espeak-ng-data",
-      "name": "Kannada"
+      "name": "Kannada (Piper Priyamvada + espeak-ng)"
     },
     "ml": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\hi_IN-priyamvada-medium.onnx",
-      "lexicon": "",
       "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\tokens.txt",
+      "lexicon": "",
       "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\espeak-ng-data",
-      "name": "Malayalam"
+      "name": "Malayalam (Piper Priyamvada + espeak-ng)"
     },
     "ta": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\hi_IN-priyamvada-medium.onnx",
-      "lexicon": "",
       "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\tokens.txt",
+      "lexicon": "",
       "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\espeak-ng-data",
-      "name": "Tamil"
+      "name": "Tamil (Piper Priyamvada + espeak-ng)"
     },
     "te": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\hi_IN-priyamvada-medium.onnx",
-      "lexicon": "",
       "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\tokens.txt",
+      "lexicon": "",
       "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\espeak-ng-data",
-      "name": "Telugu"
+      "name": "Telugu (Piper Priyamvada + espeak-ng)"
     },
     "or": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\hi_IN-priyamvada-medium.onnx",
-      "lexicon": "",
       "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\tokens.txt",
+      "lexicon": "",
       "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\espeak-ng-data",
-      "name": "Odia"
+      "name": "Odia (Piper Priyamvada + espeak-ng)"
     },
     "bn": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\hi_IN-priyamvada-medium.onnx",
-      "lexicon": "",
       "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\tokens.txt",
+      "lexicon": "",
       "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\espeak-ng-data",
-      "name": "Bengali"
+      "name": "Bengali (Piper Priyamvada + espeak-ng)"
     },
     "en": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-eng\\model.onnx",
-      "lexicon": "",
       "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-eng\\tokens.txt",
+      "lexicon": "",
       "data_dir": "",
-      "name": "English"
+      "name": "English (MMS-VITS)"
     }
   }
 }

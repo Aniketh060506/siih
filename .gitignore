@@ -32,6 +32,7 @@ ai_env/
 # Large Model weights (prevent pushing multi-hundred MB binary blobs)
 models/stt/
 models/tts/
+models/vad/
 !models/registry.json
 
 # Environment & credentials
