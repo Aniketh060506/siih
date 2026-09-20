@@ -200,6 +200,9 @@ def pcm_to_wav_bytes(samples, sample_rate):
 def wav_bytes_to_float32(wav_bytes):
     """Read WAV bytes → float32 samples + sample_rate."""
     import array
+    riff_idx = wav_bytes.find(b'RIFF')
+    if riff_idx > 0:
+        wav_bytes = wav_bytes[riff_idx:]
     buf = io.BytesIO(wav_bytes)
     with wave.open(buf, 'rb') as wf:
         sample_rate = wf.getframerate()

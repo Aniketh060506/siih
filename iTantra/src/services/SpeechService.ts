@@ -9,6 +9,7 @@
 
 import { Platform } from 'react-native';
 import * as ExpoSpeech from 'expo-speech';
+import { Audio } from 'expo-av';
 
 // ─── Pipeline Step Tracker ─────────────────────────────────────────────────
 export interface PipelineStep {
@@ -73,14 +74,39 @@ class SpeechService {
   private onError: ErrorCallback | null = null;
   private nativeSubs: any[] = [];
 
+  // Offline Audio Recording state (Web Audio API)
+  private mediaStream: MediaStream | null = null;
+  private audioContext: any = null;
+  private audioInput: any = null;
+  private scriptProcessor: any = null;
+  private audioChunks: Float32Array[] = [];
+  private currentSampleRate = 16000;
+  private currentLangCode = 'en-IN';
+  private serverHost: string = 'localhost';
+  private nativeRecording: any = null;
+  private nativeSound: any = null;
+
+  setServerHost(host: string) {
+    if (host) {
+      const clean = host.replace(/^wss?:\/\//, '').replace(/^https?:\/\//, '').split(':')[0];
+      if (clean) this.serverHost = clean;
+    }
+  }
+
+  getServerHost(): string {
+    if (this.serverHost && this.serverHost !== 'localhost') return this.serverHost;
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
+      return window.location.hostname;
+    }
+    return '192.168.29.222';
+  }
+
   async init() {
     if (Platform.OS !== 'web') {
-      const esr = await getESR();
-      if (!esr) return;
       try {
-        await esr.ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        await Audio.requestPermissionsAsync();
       } catch (e) {
-        console.warn('[STT] Permission request failed:', e);
+        console.warn('[Audio] Permission request failed:', e);
       }
     }
   }
@@ -115,127 +141,282 @@ class SpeechService {
   async startListening(langId: number): Promise<void> {
     if (this.isListening) await this.stopListening();
     const langCode = LANG_STT_CODES[langId] ?? 'en-IN';
+    this.currentLangCode = langCode;
     this.isListening = true;
 
     if (Platform.OS === 'web') {
-      this.startWebSTT(langCode);
+      await this.startWebSTT(langCode);
     } else {
       await this.startNativeSTT(langCode);
     }
   }
 
-  private startWebSTT(langCode: string) {
+  private async startWebSTT(langCode: string) {
+    this.audioChunks = [];
+
+    // 1. Initialize Web Audio API to record offline mic PCM samples
+    if (typeof window !== 'undefined' && navigator?.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        this.mediaStream = stream;
+
+        const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          this.audioContext = new AudioCtx();
+          this.currentSampleRate = this.audioContext.sampleRate;
+          this.audioInput = this.audioContext.createMediaStreamSource(stream);
+          // Script processor with 4096 buffer size
+          this.scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
+          this.scriptProcessor.onaudioprocess = (e: any) => {
+            if (!this.isListening) return;
+            const channel = e.inputBuffer.getChannelData(0);
+            this.audioChunks.push(new Float32Array(channel));
+          };
+          this.audioInput.connect(this.scriptProcessor);
+          this.scriptProcessor.connect(this.audioContext.destination);
+          console.log('[STT] Offline PCM mic recording started @', this.currentSampleRate, 'Hz');
+        }
+      } catch (e: any) {
+        console.warn('[STT] Mic access error:', e?.message || e);
+        this.onError?.('Microphone access denied. Please enable mic permissions.');
+      }
+    }
+
+    // 2. Concurrently run SpeechRecognition for instant live interim preview if browser supports it
     const SpeechRecognition: any =
       (typeof window !== 'undefined' && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition));
 
-    if (!SpeechRecognition) {
-      this.onError?.('Use Chrome or Edge for speech recognition. Safari not supported.');
-      this.isListening = false;
-      return;
-    }
-
-    // Abort previous session
-    if (this.webRecognition) {
-      try { this.webRecognition.abort(); } catch {}
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = langCode;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-
-    recognition.onresult = (event: any) => {
-      let interimText = '';
-      let finalText = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const text = event.results[i][0].transcript;
-        if (event.results[i].isFinal) finalText += text;
-        else interimText += text;
+    if (SpeechRecognition) {
+      if (this.webRecognition) {
+        try { this.webRecognition.abort(); } catch {}
       }
-      if (finalText) this.onResult?.(finalText, true);
-      else if (interimText) this.onResult?.(interimText, false);
-    };
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = langCode;
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
 
-    recognition.onerror = (event: any) => {
-      if (event.error !== 'no-speech') {
-        this.onError?.(`STT: ${event.error}`);
-      }
-      this.isListening = false;
-    };
+        recognition.onresult = (event: any) => {
+          let interimText = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const text = event.results[i][0].transcript;
+            if (!event.results[i].isFinal) interimText += text;
+          }
+          if (interimText && this.isListening) {
+            this.onResult?.(interimText, false);
+          }
+        };
 
-    recognition.onend = () => {
-      // Auto-restart for continuous listening while PTT is held / hands-free
-      if (this.isListening) {
-        setTimeout(() => { if (this.isListening) { try { recognition.start(); } catch {} } }, 150);
-      }
-    };
+        recognition.onerror = (event: any) => {
+          // Ignore network errors in browser recognizer since offline Whisper handles final transcript
+          if (event.error !== 'no-speech' && event.error !== 'network') {
+            console.warn('[WebSTT]', event.error);
+          }
+        };
 
-    try {
-      recognition.start();
-      this.webRecognition = recognition;
-    } catch (e) {
-      this.onError?.('Could not start microphone. Allow mic access in browser.');
-      this.isListening = false;
+        recognition.start();
+        this.webRecognition = recognition;
+      } catch {}
     }
   }
 
   private async startNativeSTT(langCode: string) {
-    const esr = await getESR();
-    if (!esr) {
-      this.onError?.('Native speech recognition unavailable. Build APK with expo-speech-recognition.');
-      this.isListening = false;
-      return;
-    }
-
-    // Wire up listeners fresh each time
-    this.nativeSubs.forEach(s => { try { s?.remove?.(); } catch {} });
-    this.nativeSubs = [];
-
-    this.nativeSubs.push(
-      esr.addSpeechRecognitionListener('result', (event: any) => {
-        const resultItem = event.results?.[event.resultIndex];
-        const text = resultItem?.[0]?.transcript ?? '';
-        const isFinal = resultItem?.isFinal ?? false;
-        if (text) this.onResult?.(text, isFinal);
-      })
-    );
-    this.nativeSubs.push(
-      esr.addSpeechRecognitionListener('error', (event: any) => {
-        this.isListening = false;
-        this.onError?.(`STT Error: ${event.message || event.error || 'unknown'}`);
-      })
-    );
-    this.nativeSubs.push(
-      esr.addSpeechRecognitionListener('end', () => {
-        this.isListening = false;
-      })
-    );
-
     try {
-      esr.ExpoSpeechRecognitionModule.start({
-        lang: langCode,
-        interimResults: true,
-        continuous: true,
-        requiresOnDeviceRecognition: false,
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) {
+        this.onError?.('Microphone permission not granted.');
+        this.isListening = false;
+        return;
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
       });
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await recording.startAsync();
+      this.nativeRecording = recording;
+      console.log('[Native STT] Recording started offline...');
     } catch (e: any) {
-      this.onError?.(`Could not start native STT: ${e?.message}`);
+      console.warn('[Native STT] Start recording error:', e?.message || e);
+      this.onError?.('Microphone recording error');
       this.isListening = false;
     }
   }
 
   async stopListening(): Promise<void> {
+    if (!this.isListening) return;
     this.isListening = false;
 
     if (Platform.OS === 'web') {
       try { this.webRecognition?.stop(); } catch {}
+
+      // Clean up audio nodes
+      if (this.scriptProcessor) {
+        try { this.scriptProcessor.disconnect(); } catch {}
+        this.scriptProcessor = null;
+      }
+      if (this.audioInput) {
+        try { this.audioInput.disconnect(); } catch {}
+        this.audioInput = null;
+      }
+      if (this.mediaStream) {
+        try { this.mediaStream.getTracks().forEach(t => t.stop()); } catch {}
+        this.mediaStream = null;
+      }
+
+      // Check if we captured audio chunks
+      if (this.audioChunks.length > 0) {
+        const chunks = [...this.audioChunks];
+        this.audioChunks = [];
+        const originalRate = this.currentSampleRate;
+        const langShort = (this.currentLangCode || 'en').split('-')[0];
+
+        // Send to 100% Offline Whisper STT model
+        try {
+          const wavBlob = this.encodeWAV(chunks, originalRate, 16000);
+          console.log(`[🤖 Offline STT] Sending ${wavBlob.size} bytes WAV to local Whisper model...`);
+
+          const serverHost = this.getServerHost();
+          // Try port 3002 (Offline AI Server) first, fallback to port 3001 (Relay)
+          let response: Response | null = null;
+          try {
+            response = await fetch(`http://${serverHost}:3002/stt?lang=${langShort}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'audio/wav' },
+              body: wavBlob,
+            });
+          } catch {
+            response = await fetch(`http://${serverHost}:3001/stt?lang=${langShort}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'audio/wav' },
+              body: wavBlob,
+            });
+          }
+
+          if (response && response.ok) {
+            const data = await response.json();
+            const transcript = (data.transcript || '').trim();
+            console.log(`[🤖 Offline STT Result (${data.elapsed_ms || 0}ms)]:`, transcript);
+            if (transcript) {
+              this.onResult?.(transcript, true);
+              return;
+            }
+          }
+        } catch (e: any) {
+          console.warn('[STT] Offline model inference error:', e?.message || e);
+        }
+      }
     } else {
-      const esr = await getESR();
-      if (esr) {
-        try { esr.ExpoSpeechRecognitionModule.stop(); } catch {}
+      if (this.nativeRecording) {
+        try {
+          await this.nativeRecording.stopAndUnloadAsync();
+          const uri = this.nativeRecording.getURI();
+          this.nativeRecording = null;
+          if (uri) {
+            const host = this.getServerHost();
+            const langShort = (this.currentLangCode || 'en').split('-')[0];
+            const formData = new FormData();
+            formData.append('audio', {
+              uri,
+              type: 'audio/m4a',
+              name: 'audio.m4a',
+            } as any);
+
+            let res: Response | null = null;
+            try {
+              res = await fetch(`http://${host}:3002/stt?lang=${langShort}`, {
+                method: 'POST',
+                body: formData,
+              });
+            } catch {
+              res = await fetch(`http://${host}:3001/stt?lang=${langShort}`, {
+                method: 'POST',
+                body: formData,
+              });
+            }
+
+            if (res && res.ok) {
+              const data = await res.json();
+              const transcript = (data.transcript || '').trim();
+              if (transcript) {
+                this.onResult?.(transcript, true);
+              }
+            }
+          }
+        } catch (e: any) {
+          console.warn('[Native STT] Processing error:', e?.message || e);
+        }
       }
     }
+  }
+
+  private encodeWAV(chunks: Float32Array[], originalSampleRate: number, targetSampleRate = 16000): Blob {
+    let totalLength = 0;
+    for (const c of chunks) totalLength += c.length;
+    const merged = new Float32Array(totalLength);
+    let offset = 0;
+    for (const c of chunks) {
+      merged.set(c, offset);
+      offset += c.length;
+    }
+
+    // Downsample to 16000 Hz for Whisper
+    let resampled: Float32Array;
+    if (originalSampleRate === targetSampleRate) {
+      resampled = merged;
+    } else {
+      const ratio = originalSampleRate / targetSampleRate;
+      const newLength = Math.round(merged.length / ratio);
+      resampled = new Float32Array(newLength);
+      for (let i = 0; i < newLength; i++) {
+        const idx = Math.min(Math.round(i * ratio), merged.length - 1);
+        resampled[i] = merged[idx];
+      }
+    }
+
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const byteRate = targetSampleRate * numChannels * (bitsPerSample / 8);
+    const blockAlign = numChannels * (bitsPerSample / 8);
+    const buffer = new ArrayBuffer(44 + resampled.length * 2);
+    const view = new DataView(buffer);
+
+    const writeString = (viewOffset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(viewOffset + i, str.charCodeAt(i));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + resampled.length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, targetSampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+    writeString(36, 'data');
+    view.setUint32(40, resampled.length * 2, true);
+
+    let p = 44;
+    for (let i = 0; i < resampled.length; i++, p += 2) {
+      const s = Math.max(-1, Math.min(1, resampled[i]));
+      view.setInt16(p, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
   }
 
   getIsListening() { return this.isListening; }
@@ -269,13 +450,28 @@ class SpeechService {
       }
 
       const serverHost = window.location.hostname || 'localhost';
-      const ttsUrl = `http://${serverHost}:3001/tts` +
+      const ttsOfflineUrl = `http://${serverHost}:3002/tts` +
+        `?text=${encodeURIComponent(text.slice(0, 200))}` +
+        `&lang=${bcp47Short}` +
+        `&speed=1.0`;
+      const ttsRelayUrl = `http://${serverHost}:3001/tts` +
         `?text=${encodeURIComponent(text.slice(0, 200))}` +
         `&lang=${bcp47Short}` +
         `&slow=${isSOS ? '1' : '0'}`;
 
+      let triedRelay = false;
       let fallbackTriggered = false;
+
       const doFallback = () => {
+        if (!triedRelay) {
+          triedRelay = true;
+          console.log('[TTS] Trying relay port 3001...');
+          if (this.currentAudio) {
+            this.currentAudio.src = ttsRelayUrl;
+            this.currentAudio.play().catch(() => doFallback());
+            return;
+          }
+        }
         if (fallbackTriggered) return;
         fallbackTriggered = true;
         this.stopSpeaking(); // Kill HTML audio element completely
@@ -309,7 +505,7 @@ class SpeechService {
           doFallback();
         };
 
-        audio.src = ttsUrl;
+        audio.src = ttsOfflineUrl;
         const playPromise = audio.play();
         if (playPromise) {
           playPromise.catch(() => {
@@ -323,19 +519,50 @@ class SpeechService {
       }
     }
 
-    // ── 2. Native: expo-speech ────────────────────────────────────────────
-    try { ExpoSpeech.stop(); } catch {}
-    ExpoSpeech.speak(text, {
-      language: langCode,
-      pitch: isSOS ? 1.2 : 1.0,
-      rate: isSOS ? 0.85 : 0.95,
-      volume: 1.0,
-      onDone,
-      onError: (e) => { console.warn('[TTS/native]', e); onDone?.(); },
-    });
+    // ── 2. Native: Play offline audio via expo-av Audio.Sound ─────────────
+    try {
+      if (this.nativeSound) {
+        try { await this.nativeSound.unloadAsync(); } catch {}
+        this.nativeSound = null;
+      }
+      const host = this.getServerHost();
+      const ttsOfflineUrl = `http://${host}:3002/tts?text=${encodeURIComponent(text.slice(0, 200))}&lang=${bcp47Short}&speed=1.0`;
+      console.log('[Native TTS] Playing offline audio from:', ttsOfflineUrl);
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: ttsOfflineUrl },
+        { shouldPlay: true }
+      );
+      this.nativeSound = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync();
+          this.nativeSound = null;
+          onDone?.();
+        }
+      });
+      return;
+    } catch (e) {
+      console.warn('[Native Offline TTS Unreachable, falling back to ExpoSpeech]:', e);
+      try { ExpoSpeech.stop(); } catch {}
+      ExpoSpeech.speak(text, {
+        language: langCode,
+        pitch: isSOS ? 1.2 : 1.0,
+        rate: isSOS ? 0.85 : 0.95,
+        volume: 1.0,
+        onDone,
+        onError: (e) => { console.warn('[TTS/native]', e); onDone?.(); },
+      });
+    }
   }
 
   stopSpeaking() {
+    if (this.nativeSound) {
+      try {
+        this.nativeSound.stopAsync();
+        this.nativeSound.unloadAsync();
+        this.nativeSound = null;
+      } catch {}
+    }
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       if (this.currentAudio) {
         try {

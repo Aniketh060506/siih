@@ -63,12 +63,38 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── /tts — Google TTS proxy (ALL 10 Indian languages) ─────
+  // ── /stt — Offline AI STT Proxy (Whisper Tiny INT8 on port 3002) ────
+  if (url.pathname === '/stt' && req.method === 'POST') {
+    const lang = url.searchParams.get('lang') || 'hi';
+    const aiReq = http.request({
+      hostname: '127.0.0.1',
+      port: 3002,
+      path: `/stt?lang=${encodeURIComponent(lang)}`,
+      method: 'POST',
+      headers: {
+        'Content-Type': req.headers['content-type'] || 'audio/wav',
+        'Content-Length': req.headers['content-length'] || '',
+      }
+    }, (aiRes) => {
+      res.writeHead(aiRes.statusCode, { ...corsHeaders, 'Content-Type': 'application/json' });
+      aiRes.pipe(res);
+    });
+
+    aiReq.on('error', (err) => {
+      console.warn('[STT] Offline AI server unreachable:', err.message);
+      res.writeHead(503, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Offline AI server unreachable: ${err.message}` }));
+    });
+
+    req.pipe(aiReq);
+    return;
+  }
+
+  // ── /tts — Local Offline AI Model First (port 3002) ─────────
   if (url.pathname === '/tts') {
     const text = url.searchParams.get('text') || '';
     const langInput = (url.searchParams.get('lang') || 'hi').toLowerCase().split('-')[0];
     const lang = LANG_MAP[langInput] || 'hi';
-    // Auto-slow for complex-script languages for clarity; caller can override
     const slowParam = url.searchParams.get('slow');
     const slow = slowParam !== null ? slowParam : (SLOW_LANGS.has(lang) ? '1' : '0');
 
@@ -77,6 +103,28 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ error: 'text required' }));
       return;
     }
+
+    // 1. Try Local 100% Offline AI Neural Model on port 3002
+    const aiUrl = `http://127.0.0.1:3002/tts?text=${encodeURIComponent(text.slice(0, 200))}&lang=${lang}`;
+    const aiReq = http.get(aiUrl, (aiRes) => {
+      if (aiRes.statusCode === 200) {
+        console.log(`[🤖 Local Offline AI] TTS [${lang}]: "${text.slice(0, 40)}" (100% offline model)`);
+        res.writeHead(200, {
+          ...corsHeaders,
+          'Content-Type': 'audio/wav',
+          'Cache-Control': 'public, max-age=300',
+        });
+        aiRes.pipe(res);
+        return;
+      }
+      console.warn(`[Local AI] Port 3002 returned status ${aiRes.statusCode}. Falling back to Google TTS...`);
+      fetchTTS(lang, text);
+    });
+
+    aiReq.on('error', (err) => {
+      console.warn(`[Local AI] Port 3002 unreachable (${err.message}). Falling back to Google TTS...`);
+      fetchTTS(lang, text);
+    });
 
     function fetchTTS(targetLang, targetText) {
       const googleUrl =
@@ -95,13 +143,11 @@ const server = http.createServer((req, res) => {
         },
       };
 
-      console.log(`[🔊] TTS: "${targetText.slice(0, 40)}" [${targetLang}]`);
+      console.log(`[🌐 Cloud Fallback] TTS: "${targetText.slice(0, 40)}" [${targetLang}]`);
 
       https.get(googleUrl, options, (ttsRes) => {
         if (ttsRes.statusCode !== 200) {
-          // Odia fallback: retry with Hindi if original lang fails
           if (lang === 'or' && targetLang === 'or') {
-            console.log('[TTS] Odia failed, retrying with Hindi...');
             fetchTTS('hi', targetText);
             return;
           }
@@ -117,16 +163,8 @@ const server = http.createServer((req, res) => {
             'Cache-Control': 'public, max-age=300',
           });
         }
-
         ttsRes.pipe(res);
-
-        ttsRes.on('error', (e) => {
-          console.error('[TTS stream error]', e.message);
-          if (!res.headersSent) res.writeHead(500);
-          res.end();
-        });
       }).on('error', (e) => {
-        console.error('[TTS fetch error]', e.message);
         if (!res.headersSent) {
           res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: e.message }));
@@ -134,7 +172,6 @@ const server = http.createServer((req, res) => {
       });
     }
 
-    fetchTTS(lang, text);
     return;
   }
 

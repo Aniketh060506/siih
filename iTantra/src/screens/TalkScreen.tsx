@@ -125,6 +125,7 @@ export default function TalkScreen({
 
   // ── Init Speech & WebSocket ───────────────────────────────────────────
   useEffect(() => {
+    speechService.setServerHost(serverUrl);
     speechService.init().then(() => {
       speechService.setCallbacks(handleSTTResult, handleSTTError);
     });

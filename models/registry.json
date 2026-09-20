@@ -8,11 +8,11 @@
   },
   "tts": {
     "hi": {
-      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-hin\\model.onnx",
-      "lexicon": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-hin\\lexicon.txt",
-      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-hin\\tokens.txt",
-      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-hin",
-      "name": "Hindi"
+      "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\hi_IN-priyamvada-medium.onnx",
+      "lexicon": "",
+      "tokens": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\tokens.txt",
+      "data_dir": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-piper-hi_IN-priyamvada-medium\\espeak-ng-data",
+      "name": "Hindi (Piper Neural)"
     },
     "gu": {
       "model": "C:\\Users\\Aniketh\\Desktop\\projects\\siiiih\\models\\tts\\vits-mms-guj\\model.onnx",
