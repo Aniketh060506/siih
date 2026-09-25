@@ -218,18 +218,10 @@ export default function TalkScreen({
   const handleTestSpeaker = useCallback(() => {
     speechService.unlockAudio();
     const testPhrases = [
-      'नमस्ते, आई-तंत्र ऑडियो तैयार है',
-      'નમસ્તે, આઈ-તંત્ર ઓડિયો તૈયાર છે',
-      'नमस्कार, आय-तंत्र ऑडिओ तयार आहे',
-      'ನಮಸ್ಕಾರ, ಐ-ತಂತ್ರ ಆಡಿಯೋ ಸಿದ್ಧವಾಗಿದೆ',
-      'നമസ്കാരം, ഐ-തന്ത്ര ഓഡിയോ തയ്യാറാണ്',
-      'வணக்கம், ஐ-தந்திர ஆடியோ தயார்',
-      'నమస్కారం, ఐ-తంత్ర ఆడియో సిద్ధంగా ఉంది',
-      'ନମସ୍କାର, ଆଇ-ତନ୍ତ୍ର ଅଡିଓ ପ୍ରସ୍ତୁତ',
-      'নমস্কার, আই-তন্ত্র অডিও প্রস্তুত',
       'Hello, iTantra transceiver audio ready',
+      'नमस्ते, आई-तंत्र ऑडियो तैयार है',
     ];
-    const phrase = testPhrases[selectedLang] ?? testPhrases[9];
+    const phrase = testPhrases[selectedLang] ?? testPhrases[0];
     speechService.speak(phrase, selectedLang, isSOS);
   }, [selectedLang, isSOS]);
 

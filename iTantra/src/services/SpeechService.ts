@@ -31,16 +31,8 @@ export const INITIAL_STEPS: PipelineStep[] = [
 
 // ─── Language BCP-47 codes for STT/TTS engines ────────────────────────────
 export const LANG_STT_CODES: Record<number, string> = {
-  0: 'hi-IN',
-  1: 'gu-IN',
-  2: 'mr-IN',
-  3: 'kn-IN',
-  4: 'ml-IN',
-  5: 'ta-IN',
-  6: 'te-IN',
-  7: 'or-IN',
-  8: 'bn-IN',
-  9: 'en-IN',
+  0: 'en-IN',
+  1: 'hi-IN',
 };
 
 type SpeechCallback = (transcript: string, isFinal: boolean) => void;

@@ -216,26 +216,60 @@ def pcm_to_wav_bytes(samples, sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
+def any_audio_to_float32(audio_bytes: bytes):
+    """Convert any audio bytes (WAV, M4A, AAC, MP3, etc.) to (float32_list, sample_rate)."""
+    # 1. Try standard WAV first
+    try:
+        riff_idx = audio_bytes.find(b'RIFF')
+        if riff_idx >= 0:
+            wav_data = audio_bytes[riff_idx:]
+            buf = io.BytesIO(wav_data)
+            with wave.open(buf, 'rb') as wf:
+                sample_rate = wf.getframerate()
+                sampwidth   = wf.getsampwidth()
+                raw         = wf.readframes(wf.getnframes())
+            if sampwidth == 2:
+                import array as _array
+                samples = list(_array.array('h', raw))
+                return [s / 32768.0 for s in samples], sample_rate
+            elif sampwidth == 4:
+                import array as _array
+                samples = list(_array.array('l', raw))
+                return [s / 2147483648.0 for s in samples], sample_rate
+    except Exception:
+        pass
+
+    # 2. Try PyAV (av) which handles M4A, AAC, MP3, etc. from native mobile
+    try:
+        import av
+        inp = av.open(io.BytesIO(audio_bytes))
+        stream = inp.streams.audio[0]
+        resampler = av.AudioResampler(format='flt', layout='mono', rate=16000)
+        samples = []
+        for packet in inp.demux(stream):
+            for frame in packet.decode():
+                rframe = resampler.resample(frame)
+                samples.extend(rframe.to_ndarray().flatten().tolist())
+        if samples:
+            return samples, 16000
+    except Exception as e:
+        print(f"[Audio Decode] PyAV: {e}")
+
+    # 3. Try soundfile
+    try:
+        import soundfile as sf
+        data, sr = sf.read(io.BytesIO(audio_bytes), dtype='float32')
+        if data.ndim > 1:
+            data = data.mean(axis=1)
+        return data.tolist(), sr
+    except Exception as e:
+        print(f"[Audio Decode] soundfile: {e}")
+
+    raise ValueError("Could not decode audio data")
+
+
 def wav_bytes_to_float32(wav_bytes: bytes):
-    """WAV bytes → (float32_list, sample_rate)."""
-    import array as _array
-    riff_idx = wav_bytes.find(b'RIFF')
-    if riff_idx > 0:
-        wav_bytes = wav_bytes[riff_idx:]
-    buf = io.BytesIO(wav_bytes)
-    with wave.open(buf, 'rb') as wf:
-        sample_rate = wf.getframerate()
-        n_channels  = wf.getnchannels()
-        sampwidth   = wf.getsampwidth()
-        raw         = wf.readframes(wf.getnframes())
-    if sampwidth == 2:
-        samples = list(_array.array('h', raw))
-        return [s / 32768.0 for s in samples], sample_rate
-    elif sampwidth == 4:
-        samples = list(_array.array('l', raw))
-        return [s / 2147483648.0 for s in samples], sample_rate
-    else:
-        raise ValueError(f"Unsupported sample width: {sampwidth}")
+    return any_audio_to_float32(wav_bytes)
 
 
 # ─── HTTP Handler ─────────────────────────────────────────────────────────────
@@ -345,7 +379,20 @@ class AIHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b'{"error":"no audio data"}')
                 return
 
-            wav_data   = self.rfile.read(length)
+            raw_data   = self.rfile.read(length)
+            content_type = self.headers.get('Content-Type', '')
+
+            # Extract binary audio if sent as multipart/form-data
+            if 'multipart/form-data' in content_type:
+                header_end = raw_data.find(b'\r\n\r\n')
+                if header_end != -1:
+                    last_boundary = raw_data.rfind(b'\r\n--')
+                    if last_boundary > header_end:
+                        raw_data = raw_data[header_end + 4 : last_boundary]
+                    else:
+                        raw_data = raw_data[header_end + 4 :]
+
+            wav_data   = raw_data
             lang_input = params.get('lang', 'hi').lower()
             lang       = norm_lang(lang_input)
 
@@ -396,12 +443,13 @@ if __name__ == '__main__':
     print(f"  TTS: Piper Priyamvada (Indic) + MMS-VITS (English)")
     print(f"  VAD: Silero VAD")
     print(f"  100% OFFLINE — No internet required")
-    print(f"\n  Pre-warming Hindi STT + TTS…")
+    print(f"\n  Pre-warming English & Hindi STT + TTS…")
 
-    # Pre-warm Hindi (most common) and English in background
+    # Pre-warm English & Hindi STT and TTS in background
+    threading.Thread(target=lambda: get_stt('en'), daemon=True).start()
     threading.Thread(target=lambda: get_stt('hi'), daemon=True).start()
-    threading.Thread(target=lambda: get_tts('hi'), daemon=True).start()
     threading.Thread(target=lambda: get_tts('en'), daemon=True).start()
+    threading.Thread(target=lambda: get_tts('hi'), daemon=True).start()
 
     httpd = HTTPServer(('0.0.0.0', PORT), AIHandler)
 
