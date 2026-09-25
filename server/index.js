@@ -6,6 +6,8 @@
 const { WebSocketServer, WebSocket } = require('ws');
 const http = require('http');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 const PORT = process.env.PORT || 3001;
 
@@ -54,6 +56,25 @@ const server = http.createServer((req, res) => {
       nodes: Array.from(clients.keys()),
       uptime: process.uptime(),
     }));
+    return;
+  }
+
+  // ── /download-apk — 1-Click APK Download for Android Devices ────
+  if (url.pathname === '/download-apk') {
+    const apkPath = path.join(__dirname, '..', 'app-release.apk');
+    if (fs.existsSync(apkPath)) {
+      const stat = fs.statSync(apkPath);
+      res.writeHead(200, {
+        ...corsHeaders,
+        'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Length': stat.size,
+        'Content-Disposition': 'attachment; filename="iTantra-release.apk"',
+      });
+      fs.createReadStream(apkPath).pipe(res);
+    } else {
+      res.writeHead(404, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'APK file not found' }));
+    }
     return;
   }
 

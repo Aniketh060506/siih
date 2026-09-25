@@ -14,8 +14,16 @@ export interface LanguageInfo {
 }
 
 export const LANGUAGES: LanguageInfo[] = [
-  { id: 0, code: 'en-IN', name: 'English', shortName: 'EN', script: 'Latin' },
-  { id: 1, code: 'hi-IN', name: 'Hindi',   shortName: 'HI', script: 'Devanagari' },
+  { id: 0, code: 'hi-IN', name: 'Hindi',     shortName: 'HI', script: 'Devanagari' },
+  { id: 1, code: 'gu-IN', name: 'Gujarati',  shortName: 'GU', script: 'Gujarati'   },
+  { id: 2, code: 'mr-IN', name: 'Marathi',   shortName: 'MR', script: 'Devanagari' },
+  { id: 3, code: 'kn-IN', name: 'Kannada',   shortName: 'KN', script: 'Kannada'    },
+  { id: 4, code: 'ml-IN', name: 'Malayalam', shortName: 'ML', script: 'Malayalam'  },
+  { id: 5, code: 'ta-IN', name: 'Tamil',     shortName: 'TA', script: 'Tamil'      },
+  { id: 6, code: 'te-IN', name: 'Telugu',    shortName: 'TE', script: 'Telugu'     },
+  { id: 7, code: 'or-IN', name: 'Odia',      shortName: 'OR', script: 'Odia'       },
+  { id: 8, code: 'bn-IN', name: 'Bengali',   shortName: 'BN', script: 'Bengali'    },
+  { id: 9, code: 'en-IN', name: 'English',   shortName: 'EN', script: 'Latin'      },
 ];
 
 export type TransmitMode = 'send' | 'sos';
