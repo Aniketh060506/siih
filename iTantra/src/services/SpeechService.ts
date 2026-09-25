@@ -462,7 +462,8 @@ class SpeechService {
       // Priority B: HTML5 Audio via same-origin Object URL
       try {
         const objectUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(objectUrl);
+        const HTMLAudio = (window as any).Audio as new (src?: string) => HTMLAudioElement;
+        const audio = new HTMLAudio(objectUrl);
         this.currentAudio = audio;
 
         audio.onended = () => {
